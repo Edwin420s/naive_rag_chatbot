@@ -1,6 +1,8 @@
 import streamlit as st
 from rag_chatbot import *
 import os
+api_key = os.getenv("OPENAI_API_KEY")
+print(api_key)
 from dotenv import load_dotenv
 
 load_dotenv()
