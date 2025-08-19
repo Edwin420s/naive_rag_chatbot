@@ -1,4 +1,5 @@
 import os
+import re
 from langchain_community.document_loaders import PyPDFLoader, TextLoader, UnstructuredFileLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import OpenAIEmbeddings
@@ -10,6 +11,9 @@ from langchain.retrievers.document_compressors import CohereRerank
 from langchain.prompts import PromptTemplate
 from utils import log_retrieval  # Custom logging
 
+# ---------------------------
+# Document Loading & Chunking
+# ---------------------------
 def load_documents(doc_folder="docs"):
     docs = []
     for file_name in os.listdir(doc_folder):
@@ -35,6 +39,9 @@ def chunk_documents(docs, chunk_size=1000, chunk_overlap=200):
     )
     return text_splitter.split_documents(docs)
 
+# ---------------------------
+# Vector Store
+# ---------------------------
 def create_vectorstore(docs):
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
     vectorstore = FAISS.from_documents(docs, embeddings)
@@ -45,28 +52,29 @@ def load_vectorstore():
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
     return FAISS.load_local("vectorstore", embeddings, allow_dangerous_deserialization=True)
 
+# ---------------------------
+# RAG Chain with Reranking
+# ---------------------------
 def build_rag_chain(vectorstore, use_reranker=False):
-    # Custom prompt template
     prompt_template = """Use the following context to answer the question. 
-    If you don't know the answer, say you don't know. Keep answers concise.
-    
-    Context:
-    {context}
-    
-    Question: {question}
-    Answer:"""
-    
+If you don't know the answer, say you don't know. Keep answers concise.
+
+Context:
+{context}
+
+Question: {question}
+Answer:"""
+
     PROMPT = PromptTemplate(
         template=prompt_template, 
         input_variables=["context", "question"]
     )
-    
-    # Configure retriever
+
     base_retriever = vectorstore.as_retriever(
-        search_type="similarity", 
+        search_type="similarity",
         search_kwargs={"k": 10 if use_reranker else 3}
     )
-    
+
     if use_reranker:
         compressor = CohereRerank(top_n=3)
         retriever = ContextualCompressionRetriever(
@@ -75,10 +83,9 @@ def build_rag_chain(vectorstore, use_reranker=False):
         )
     else:
         retriever = base_retriever
-    
-    # Build QA chain
+
     llm = ChatOpenAI(model="gpt-4-turbo", temperature=0.2)
-    
+
     return RetrievalQA.from_chain_type(
         llm=llm,
         chain_type="stuff",
@@ -87,13 +94,22 @@ def build_rag_chain(vectorstore, use_reranker=False):
         chain_type_kwargs={"prompt": PROMPT}
     )
 
+# ---------------------------
+# Summarization Mode
+# ---------------------------
 def summarize_documents(docs):
     summary_prompt = """
-    Summarize the key points from these documents in 3-5 bullet points. 
-    Focus on main themes, important conclusions, and actionable insights.
-    
-    Documents:
-    {text}
-    """
+Summarize the key points from these documents in 3-5 bullet points. 
+Focus on main themes, important conclusions, and actionable insights.
+
+Documents:
+{text}
+"""
     llm = ChatOpenAI(model="gpt-4-turbo", temperature=0)
     return llm.invoke(summary_prompt.format(text="\n\n".join([d.page_content for d in docs])))
+
+# ---------------------------
+# Security / Sanitization
+# ---------------------------
+def sanitize_input(query):
+    return re.sub(r"[^a-zA-Z0-9\s.,?\-]", "", query)

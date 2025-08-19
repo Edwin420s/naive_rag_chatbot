@@ -10,3 +10,4 @@ def log_retrieval(query, results):
             f.write(f"Content: {res.page_content[:200]}...\n")
             f.write(f"Metadata: {res.metadata}\n")
             f.write("-"*50 + "\n")
+    return query.replace("<", "&lt;").replace(">", "&gt;").strip()
