@@ -11,7 +11,7 @@
 ## Setup
 1. Clone repository:
    ```bash
-   git clone https://github.com/yourusername/rag-pro.git
+   git clone https://github.com/Edwin420s/naive_rag_chatbot.git
    cd rag-pro
    ```
 2. Install dependencies:
